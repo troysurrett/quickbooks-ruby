@@ -21,7 +21,7 @@ Gem::Specification.new do |s|
     if Gem::Version.new(Gem::VERSION) >= Gem::Version.new('1.2.0') then
       s.add_runtime_dependency(%q<oauth>, [">= 0"])
       s.add_runtime_dependency(%q<roxml>, [">= 0"])
-      s.add_runtime_dependency(%q<nokogiri>, ["~> 1.5.0"])
+      s.add_runtime_dependency(%q<nokogiri>)
       s.add_runtime_dependency(%q<activemodel>, ["= 3.1.12"])
       s.add_runtime_dependency(%q<json>, [">= 0"])
       s.add_development_dependency(%q<rake>, [">= 0"])
