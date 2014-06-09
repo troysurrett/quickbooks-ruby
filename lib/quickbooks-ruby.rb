@@ -1,6 +1,6 @@
 require 'bigdecimal'
 require 'json'
-require 'iconv'
+# require 'iconv'
 require 'roxml'
 
 module ROXML::ClassMethods::Declarations
