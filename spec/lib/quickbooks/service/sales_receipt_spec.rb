@@ -47,8 +47,8 @@ module Quickbooks
 
         receipt = model.new
         receipt.customer_id = 2
-        receipt.ship_method_id = "Ship Method"
-        receipt.placed_on = Time.now
+        receipt.ship_method_ref = "Ship Method"
+        receipt.txn_date = Time.now
         receipt.line_items = [line]
 
         receipt = subject.create(receipt)

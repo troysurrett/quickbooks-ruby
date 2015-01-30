@@ -1,7 +1,6 @@
 module Quickbooks
   module Service
     class Account < BaseService
-      include ServiceCrud
 
       def delete(account)
         account.active = false
@@ -9,10 +8,6 @@ module Quickbooks
       end
 
       private
-
-      def default_model_query
-        "SELECT * FROM ACCOUNT"
-      end
 
       def model
         Quickbooks::Model::Account

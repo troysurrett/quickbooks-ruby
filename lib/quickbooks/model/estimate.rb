@@ -8,6 +8,8 @@
 module Quickbooks
   module Model
     class Estimate < BaseModel
+      include GlobalTaxCalculation
+      include HasLineItems
 
       #== Constants
       REST_RESOURCE = 'estimate'
@@ -21,11 +23,11 @@ module Quickbooks
       xml_accessor :doc_number, :from => 'DocNumber'
       xml_accessor :txn_date, :from => 'TxnDate', :as => Date
       xml_accessor :private_note, :from => 'PrivateNote'
-      
+
       xml_accessor :department_ref, :from => 'DepartmentRef', :as => BaseReference
       xml_accessor :linked_transactions, :from => 'LinkedTxn', :as => [LinkedTransaction]
       xml_accessor :line_items, :from => 'Line', :as => [InvoiceLineItem]
-      xml_accessor :txn_tax_detail, :from => 'TxnTaxDetail'
+      xml_accessor :txn_tax_detail, :from => 'TxnTaxDetail', :as => TransactionTaxDetail
       xml_accessor :txn_status, :from => 'TxnStatus'
 
       xml_accessor :customer_ref, :from => 'CustomerRef', :as => BaseReference
@@ -34,11 +36,16 @@ module Quickbooks
       xml_accessor :shipping_address, :from => 'ShipAddr', :as => PhysicalAddress
       xml_accessor :class_ref, :from => 'ClassRef', :as => BaseReference
       xml_accessor :sales_term_ref, :from => 'SalesTermRef', :as => BaseReference
-      xml_accessor :total_amount, :from => 'TotalAmt', :as => BigDecimal, :to_xml => Proc.new { |val| val.to_f }
+      xml_accessor :total, :from => 'TotalAmt', :as => BigDecimal, :to_xml => to_xml_big_decimal
       xml_accessor :ship_method_ref, :from => 'ShipMethodRef', :as => BaseReference
       xml_accessor :ship_date, :from => 'ShipDate', :as => Date
-     
-      xml_accessor :apply_tax_after_discount, :from => 'ApplyTaxAfterDiscount'
+
+      xml_accessor :currency_ref, :from => 'CurrencyRef', :as => BaseReference
+      xml_accessor :exchange_rate, :from => 'ExchangeRate', :as => BigDecimal, :to_xml => to_xml_big_decimal
+      xml_accessor :due_date, :from => 'DueDate', :as => Date
+      xml_accessor :deposit_to_account_ref, :from => 'DepositToAccountRef', :as => BaseReference
+
+      xml_accessor :apply_tax_after_discount?, :from => 'ApplyTaxAfterDiscount'
       xml_accessor :print_status, :from => 'PrintStatus'
       xml_accessor :email_status, :from => 'EmailStatus'
       xml_accessor :bill_email, :from => 'BillEmail', :as => EmailAddress
@@ -46,20 +53,15 @@ module Quickbooks
       xml_accessor :accepted_by, :from => 'AcceptedBy'
       xml_accessor :accepted_date, :from => 'AcceptedDate', :as => Date
 
-      reference_setters :department_ref, :customer_ref, :class_ref, :sales_term_ref, :ship_method_ref
+      reference_setters
+
+      #== This adds aliases for backwards compatability to old attributes names
+      alias_method :total_amount, :total
+      alias_method :total_amount=, :total=
 
       #== Validations
-      validates_length_of :line_items, :minimum => 1
+      validate :line_item_size
       validate :existence_of_customer_ref
-
-      def initialize
-        ensure_line_items_initialization
-        super
-      end
-
-      def apply_tax_after_discount?
-        apply_tax_after_discount.to_s == 'true'
-      end
 
       private
 
@@ -69,9 +71,6 @@ module Quickbooks
         end
       end
 
-      def ensure_line_items_initialization
-        self.line_items ||= []
-      end
     end
   end
 end

@@ -8,6 +8,7 @@
 	<DocNumber>1001</DocNumber>
 	<TxnDate>2013-11-15</TxnDate>
 	<CurrencyRef name="United States Dollar">USD</CurrencyRef>
+	<ExchangeRate>1.5</ExchangeRate> <!-- Present for non-USA accounts -->
 	<PrivateNote>Statement Memo</PrivateNote>
 	<Line>
 		<Id>1</Id>
@@ -27,6 +28,29 @@
 		<DetailType>SubTotalLineDetail</DetailType>
 		<SubTotalLineDetail />
 	</Line>
+	<TxnTaxDetail>
+			<TotalTax>2.85</TotalTax>
+			<TaxLine>
+					<Amount>0</Amount>
+					<DetailType>TaxLineDetail</DetailType>
+					<TaxLineDetail>
+							<TaxRateRef>4</TaxRateRef>
+							<PercentBased>true</PercentBased>
+							<TaxPercent>0</TaxPercent>
+							<NetAmountTaxable>4.00</NetAmountTaxable>
+					</TaxLineDetail>
+			</TaxLine>
+			<TaxLine>
+					<Amount>2.85</Amount>
+					<DetailType>TaxLineDetail</DetailType>
+					<TaxLineDetail>
+							<TaxRateRef>20</TaxRateRef>
+							<PercentBased>true</PercentBased>
+							<TaxPercent>10</TaxPercent>
+							<NetAmountTaxable>28.50</NetAmountTaxable>
+					</TaxLineDetail>
+			</TaxLine>
+	</TxnTaxDetail>
 	<CustomerRef name="Sunset Bakery">2</CustomerRef>
 	<CustomerMemo>Message to Customer</CustomerMemo>
 	<BillAddr>
@@ -51,6 +75,7 @@
 	<SalesTermRef>2</SalesTermRef>
 	<DueDate>2013-11-30</DueDate>
 	<TotalAmt>50.00</TotalAmt>
+	<HomeTotalAmt>75.00</HomtTotalAmt> <!-- Present for non-USA accounts -->
 	<ApplyTaxAfterDiscount>false</ApplyTaxAfterDiscount>
 	<PrintStatus>NotSet</PrintStatus>
 	<EmailStatus>NotSet</EmailStatus>

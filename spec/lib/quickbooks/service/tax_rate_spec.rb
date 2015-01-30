@@ -1,14 +1,15 @@
-describe Quickbooks::Service::TaxRate do
-  before(:all) do
-    construct_service :tax_rate
-  end
+describe "Quickbooks::Service::TaxRate" do
+  before(:all) { construct_service :tax_rate }
 
-  it "can query for tax rates" do
-    xml = fixture("tax_rates.xml")
-    stub_request(:get, @service.url_for_query, ["200", "OK"], xml, true)
+  it "can query tax rates" do
+    stub_request(:get,
+                 @service.url_for_query,
+                 ["200", "OK"],
+                 fixture("tax_rates.xml"))
+
     tax_rates = @service.query
-    tax_rates.count.should == 1
-    tax_rate = tax_rates.entries.first
-    tax_rate.name.should == "Mountain View"
+
+    tax_rates.entries.count.should eq(1)
+    tax_rates.entries.first.name.should eq("Mountain View")
   end
 end

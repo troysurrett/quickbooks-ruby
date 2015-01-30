@@ -2,6 +2,23 @@
 
 Backport of quickbooks-ruby for Ruby 1.8.7
 
+## Changes in 0.1.x from 0.0.x
+
+`0.1.0` introduced a backwards-incompatible change in how boolean attributes are handled. As of `0.1.0` any boolean like:
+
+`xml_accessor :active?, :from => 'Active'`
+
+will be accessible via `active?`. Thereby eliminating custom code like:
+
+```ruby
+def active?
+  active.to_s == 'true'
+end
+```
+
+Now a call to `active?` that is not set will return `nil`. Otherwise it return `true` / `false`.
+Moreover, there is no longer a getter method e.g. `active` (without the trailing `?`).
+
 ## Requirements
 
 Ruby 1.8.7
@@ -15,6 +32,17 @@ Gems:
 * `nokogiri` : XML parsing
 * `active_model` : For validations
 * `json`
+
+## Sandbox Mode
+An API app provides two sets of OAuth key for production and development. Since October 22, 2014, only [Sandbox Companies](https://developer.intuit.com/docs/0025_quickbooksapi/0050_data_services)
+are allowed to connected to the QBO via the development key. The end-point for sandbox mode is https://sandbox-quickbooks.api.intuit.com.
+
+By default, the gem runs in production mode. If you prefer to develop / test the integration with the development key,
+you need to config the gem to run in sandbox mode:
+
+```ruby
+Quickbooks.sandbox_mode = true
+```
 
 ## Getting Started & Initiating Authentication Flow with Intuit
 
@@ -61,7 +89,7 @@ Your Controller action (the `grantUrl` above) should look like this:
   end
 ```
 
-Where `quickbooks_oauth_callback_url` is the absolute URL of your application that Intuit should send the user when authentication succeeeds. That action should look like:
+Where `quickbooks_oauth_callback_url` is the absolute URL of your application that Intuit should send the user when authentication succeeds. That action should look like:
 
 ```ruby
 def oauth_callback
@@ -69,10 +97,20 @@ def oauth_callback
 	token = at.token
 	secret = at.secret
 	realm_id = params['realmId']
-	# store the token, secret & RealmID somewhere for this user, you will need all 3 to work with Quickeebooks
+	# store the token, secret & RealmID somewhere for this user, you will need all 3 to work with Quickbooks-Ruby
 end
 ```
-:star: Also, check out regular Quickeebooks contributor, <a href="https://github.com/minimul" target="_blank">minimul</a>'s, article [Get started integrating Rails 4 and QuickBooks Online with the Quickeebooks Gem](http://minimul.com/get-started-integrating-rails-4-and-quickbooks-online-with-the-quickeebooks-gem-part-1.html) for a step-by-step guide.
+**NOTE**: If you are using Rails 4.1, you will need to wrap the token in Marshal.load and Marshal.dump:
+
+```ruby
+session[:qb_request_token] = Marshal.dump(token)
+```
+
+```ruby
+Marshal.load(session[:qb_request_token]).get_access_token(:oauth_verifier => params[:oauth_verifier])
+```
+
+:star: Also, check out regular Quickbooks-Ruby contributor, <a href="https://github.com/minimul" target="_blank">minimul</a>'s, article [Integrating Rails and QuickBooks Online via the version 3 API](http://minimul.com/integrating-rails-and-quickbooks-online-via-the-version-3-api-part-1.html) for a step-by-step guide along with screencasts.
 
 ## Creating an OAuth Access Token
 
@@ -80,6 +118,46 @@ Once you have your users OAuth Token & Secret you can initialize your `OAuth Con
 
 ```ruby
 access_token = OAuth::AccessToken.new($qb_oauth_consumer, access_token, access_secret)
+```
+
+## Persisting the Credentials
+
+Most likely you will want to persist the OAuth access credentials so you don't have to connect to QBO
+each and every time.
+
+QBO allows the access credentials to live for 6 months, and after 5 months they can be renewed. You will
+get an error if you try and renew prior to 5 months. Thus, you will need to keep track of the dates and
+manage the renewal process yourself.
+
+An example database table would have fields likes:
+
+
+```sql
+access_token varchar(255),
+access_secret varchar(255)
+company_id varchar(255),
+token_expires_at datetime # Set to 6.months.from_now upon insertion
+reconnect_token_at datetime # Set to 5.months.from_now upon insertion
+```
+
+Then you will want to have a scheduled task / cron which runs nightly and runs thru your tokens and checks for records where `reconnect_token_at >= now()` and it then performs the following logic:
+
+```ruby
+expiring_tokens.each do |record|
+  access_token = OAuth::AccessToken.new($qb_oauth_consumer, record.access_token, record.access_secret)
+  service = Quickbooks::Service::AccessToken.new
+  service.access_token = access_token
+  service.company_id = record.company_id
+  result = service.renew
+
+  # result is an AccessTokenResponse, which has fields +token+ and +secret+
+  # update your local record with these new params
+  record.access_token = result.token
+  record.access_secret = result.secret
+  record.token_expires_at = 6.months.from_now.utc
+  record.reconnect_token_at = 5.months.from_now.utc
+  record.save!
+end
 ```
 
 ## Getting Started - Retrieving a list of Customers
@@ -91,6 +169,8 @@ The general approach is you first instantiate a `Service` object based on the en
 service = Quickbooks::Service::Customer.new
 service.company_id = "123" # also known as RealmID
 service.access_token = access_token # the OAuth Access Token you have from above
+
+# Equivalent to Quickbooks::Service::Customer.new(:company_id => "123", :access_token => access_token)
 
 customers = service.query() # Called without args you get the first page of results
 
@@ -123,6 +203,27 @@ customers.query(nil, :page => 2, :per_page => 25)
 query = "Select Id, GivenName From Customer Where Metadata.LastUpdatedTime>'2013-03-13T14:50:22-08:00' Order By Metadata.LastUpdatedTime"
 customers.query(query, :page => 2, :per_page => 25)
 ```
+### Querying in Batches
+
+Often one needs to retrieve multiple pages of records of an Entity type
+and loop over them all. Fortunately there is the `query_in_batches` collection method:
+
+```ruby
+query = nil
+Customer.query_in_batches(query, per_page: 1000) do |batch|
+  batch.each do |customer|
+    # ...
+  end
+end
+```
+
+The first argument to `query_in_batches` is the `query` (which
+can be `nil` to retrieve the default items in that collection).
+If you're are running a custom Query then pass it instead.
+
+The second argument is the options, which are optional.
+By default, the options are `per_page: 1000`.
+
 
 ## Retrieving a single object
 
@@ -156,11 +257,27 @@ If you don't have the complete object on hand and only want to change a couple o
 
 ```ruby
 # update a Customer's name when we only know their ID
-customer = Quickbooks::Customer::Model.new
+customer = Quickbooks::Model::Customer.new
 customer.id = 99
 customer.company_name = "New Company Name"
 service.update(customer, :sparse => true)
 ```
+
+## Reference Setters
+
+Some models require a reference to be set, to a Customer, or an Item, etc. In the Quickbooks API these references
+are labeled via a property like `CustomerRef`. In `quickbooks-ruby` the assignment of these references is done
+by using the setter on the `_id` property.
+
+For example, to specify a Customer with ID 99 on an Invoice you would do this:
+
+```ruby
+invoice = Quickbooks::Model::Invoice.new
+invoice.customer_id = 99
+```
+
+This will automatically set a `CustomerRef` XML packet with a value of 99.
+
 
 ## Generating an Invoice
 
@@ -194,6 +311,37 @@ puts created_invoice.id
 
 **Notes**: `line_item.amount` must equal the `unit_price * quantity` in the sales detail packet - otherwise Intuit will raise an exception.
 
+## Generating a SalesReceipt
+
+```ruby
+#Invoices, SalesReceipts etc can also be defined in a single command
+salesreceipt = Quickbooks::Model::SalesReceipt.new({
+  customer_id: 99,
+  txn_date: Date.civil(2013, 11, 20),
+  payment_ref_number: "111", #optional payment reference number/string - e.g. stripe token
+  deposit_to_account_id: 222, #The ID of the Account entity you want the SalesReciept to be deposited to
+  payment_method_id: 333 #The ID of the PaymentMethod entity you want to be used for this transaction
+})
+salesreceipt.auto_doc_number! #allows Intuit to auto-generate the transaction number
+
+line_item = Quickbooks::Model::Line.new
+line_item.amount = 50
+line_item.description = "Plush Baby Doll"
+line_item.sales_item! do |detail|
+  detail.unit_price = 50
+  detail.quantity = 1
+  detail.item_id = 500 # Item (Product/Service) ID here
+end
+
+salesreceipt.line_items << line_item
+
+service = Quickbooks::Service::SalesReceipt.new({access_token: access_token, company_id: "123" })
+created_receipt = service.create(salesreceipt)
+```
+
+**Notes**: In order to auto-generate transaction numbers using `salesreceipt.auto_doc_number!`, the 'Custom Transaction Numbers' setting under Company Settings>Sales Form Entry must be **unchecked** within the Quickbooks account you are posting to.
+
+
 ## Deleting an Object
 
 Use `Service#delete` which returns a boolean on whether the delete operation succeeded or not.
@@ -203,56 +351,179 @@ service.delete(customer)
 => returns boolean
 ```
 
+## Email Addresses
+Email attributes are not just strings, they are top-level objects, e.g. `EmailAddress` on a `Customer` for instance.
+
+A `Customer` has a setter method to make assigning an email address easier.
+
+```ruby
+customer = Quickbooks::Model::Customer.new
+customer.email_address = "foo@example.com"
+```
+
+## Telephone Numbers
+Like Email Addresses, telephone numbers are not just basic strings but are top-level objects.
+
+```ruby
+phone1 = Quickbooks::Model::TelephoneNumber.new
+phone1.free_form_number = "97335530394"
+customer.mobile_phone = phone1
+```
+
+## Physical Addresses
+
+Addresses are also top-level objects, so they must be instantiated and set.
+
+```ruby
+address = Quickbooks::Model::PhysicalAddress.new
+
+address.line1 = "2200 Mission St."
+address.line2 = "Suite 201"
+address.city = "Santa Cruz"
+address.country_sub_division_code = "CA" # State, in United States
+address.postal_code = "95060"
+customer.billing_address = address
+```
+
+## Batch Operations
+
+You can batch operations such creating an Invoice, updating a Customer, etc. The maximum batch size is 25 objects.
+
+How to use:
+
+```ruby
+batch_req = Quickbooks::Model::BatchRequest.new
+
+customer = Quickbooks::Model::Customer.new
+# build the customer as needed
+...
+
+item = Quickbooks::Model::Item.new
+# build the item as needed
+...
+
+batch_req.add("bId1", customer, "create")
+batch_req.add("bId2", item, "create")
+
+# Add more items to create/update as needed, up to 25
+
+batch_service = Quickbooks::Service::Batch.new
+batch_response = batch_service.make_request(batch_req)
+batch_response.response_items.each do |res|
+  puts res.bId
+  puts res.fault? ? "error" : "success"
+end
+```
+
+For complete details on Batch Operations see:
+https://developer.intuit.com/docs/0025_quickbooksapi/0050_data_services/020_key_concepts/00700_batch_operation
+
+## Query Building / Filtering
+Intuit requires that complex queries be escaped in a certain way. To make it easier to build queries that will be accepted I have provided a *basic* Query builder.
+
+```ruby
+util = Quickbooks::Util::QueryBuilder.new
+
+# the method signature is: clause(field, operator, value)
+clause1 = util.clause("DisplayName", "LIKE", "%O'Halloran")
+clause2 = util.clause("CompanyName", "=", "Smith")
+
+service.query("SELECT * FROM Customer WHERE #{clause1} AND #{clause2}")
+```
+
+## Change Data Capture
+
+Quickbooks has an api called Change Data Capture that provides a way of finding out which Entities have recently changed.  This gem currently supports a way of querying changed invoices.  This is the only way to find out if an invoice has been deleted (not voided), since a deleted invoice will not be returned by a standard Invoice query.
+
+It is possible to request changes up to 30 days ago.
+
+```ruby
+service = Quickbooks::Service::InvoiceChange.new
+...
+changed = service.since(Time.now.utc - 5 days)
+```
+
+see: https://developer.intuit.com/docs/0100_accounting/0300_developer_guides/change_data_capture for more information.
+
+##Change Data Capture For Customers
+
+It is possible to find out which Customer Entries has recently changed.
+It is possible to request changes up to 30 days ago.
+
+```ruby
+service = Quickbooks::Service::CustomerChange.new
+...
+changed = service.since(Time.now.utc - 5 days)
+```
+
+see: https://developer.intuit.com/docs/0100_accounting/0300_developer_guides/change_data_capture for more information.
+
 ## Logging
 
 ```ruby
 Quickbooks.log = true
 ```
+By default, logging is directed at STDOUT, but another target may be defined, e.g. in Rails
+```ruby
+Quickbooks.logger = Rails.logger
+Quickbooks.log = true
+# Pretty-printing logged xml is true by default
+Quickbooks.log_xml_pretty_print = false
+```
 
 ## Entities Implemented
 
 Entity            | Create | Update | Query | Delete | Fetch by ID | Other
----               | ---    | ---    | ---  | ---    | ---         | ---
-Account           | yes    | yes    | yes  | yes    | yes
-Attachable        | no     | no     | no   | no     | no
-Bill              | yes    | yes    | yes  | yes    | yes
-Bill Payment      | yes    | yes    | yes  | yes    | yes
-Class             | no    | no    | no  | no    | no
-Company Info      | n/a     | n/a     | yes   | n/a     | yes          |
-Credit Memo | yes     | yes     | yes   | no     | no          |
-Customer          | yes    | yes    | yes  | yes    | yes         |
-Department          | no    | no    | no  | no    | no         |
-Employee          | yes    | yes    | yes  | yes    | yes         |
-Entitlements          | no    | no    | no  | no    | no         |
-Estimate           | yes    | yes    | yes  | yes    | yes         |
-Invoice           | yes    | yes    | yes  | yes    | yes         |
-Item              | yes    | yes    | yes  | yes    | yes         |
-Journal Entry     | no    | no    | no  | no    | no         |
-Payment           | yes    | yes    | yes  | yes    | yes         |
-PaymentMethod     | yes    | yes    | yes  | yes    | yes         |
-Preferences           | no    | no    | no  | no    | no         |
-Purchase           | yes    | yes    | yes  | yes    | yes         |
-Purchase Order      | yes    | yes    | yes  | yes    | yes         |
-Sales Receipt     | yes    | yes    | yes  | yes    | yes         |
-Sales Rep         | no     | no     | no   | no     | no          |
-Sales Tax         | no     | no     | no   | no     | no          |
-Sales Term        | no    | no    | no  | no    | no         |
-Tax Code     | no    | no    | no  | no    | no         |
-Tax Rate     | no    | no    | no  | no    | yes         |
-Term     | yes    | yes    | yes  | yes    | yes         |
-Time Activity     | no    | no    | no  | no    | no         |
-Tracking Class    | no    | no    | no  | no    | no         |
-Vendor            | no    | no    | no  | no    | no         |
-Vendor Credit     | yes    | yes    | yes  | yes    | yes         |
+---               | ---    | ---    | ---   | ---    | ---         | ---
+Account           | yes    | yes    | yes   | yes    | yes         |
+Attachable        | no     | no     | no    | no     | no          |
+Bill              | yes    | yes    | yes   | yes    | yes         |
+Bill Payment      | yes    | yes    | yes   | yes    | yes         |
+Class             | yes    | yes    | yes   | yes    | yes         |
+Company Info      | n/a    | n/a    | yes   | n/a    | yes         |
+Credit Memo       | yes    | yes    | yes   | yes    | no          |
+Customer          | yes    | yes    | yes   | yes    | yes         |
+Department        | yes    | yes    | yes   | yes    | yes         |
+Employee          | yes    | yes    | yes   | yes    | yes         |
+Entitlements      | no     | no     | no    | no     | no          |
+Estimate          | yes    | yes    | yes   | yes    | yes         |
+Invoice           | yes    | yes    | yes   | yes    | yes         |
+Item              | yes    | yes    | yes   | yes    | yes         |
+Journal Entry     | yes    | yes    | yes   | yes    | yes         |
+Payment           | yes    | yes    | yes   | yes    | yes         |
+PaymentMethod     | yes    | yes    | yes   | yes    | yes         |
+Preferences       | n/a    | no     | yes   | n/a    | yes         |
+Purchase          | yes    | yes    | yes   | yes    | yes         |
+Purchase Order    | yes    | yes    | yes   | yes    | yes         |
+Refund Receipt    | yes    | yes    | yes   | yes    | yes         |
+Sales Receipt     | yes    | yes    | yes   | yes    | yes         |
+Sales Rep         | no     | no     | no    | no     | no          |
+Sales Tax         | no     | no     | no    | no     | no          |
+Sales Term        | no     | no     | no    | no     | no          |
+Tax Code          | no     | no     | yes   | no     | no          |
+Tax Rate          | no     | no     | yes   | no     | no          |
+Term              | yes    | yes    | yes   | yes    | yes         |
+Time Activity     | yes    | yes    | yes   | yes    | yes         |
+Tracking Class    | no     | no     | no    | no     | no          |
+Vendor            | yes    | yes    | yes   | yes    | yes         |
+Vendor Credit     | yes    | yes    | yes   | yes    | yes         |
 
+
+## Related GEMS
+
+[`quickbooks-ruby-base`](https://github.com/minimul/quickbooks-ruby-base): Complements quickbooks-ruby by providing a [base class](http://minimul.com/improve-your-quickbooks-ruby-integration-experience-with-the-quickbooks-ruby-base-gem.html) to handle routine tasks like creating a model, service, and displaying information.
+>>>>>>> upstream/master
 
 ## TODO
 
-* Implement other Line Item types, e.g. `DiscountLineDetail`, `DescriptionLineDetail` for Invoices
+* Implement other Line Item types, e.g. `DescriptionLineDetail` for Invoices
 
 ## Author
 
 Cody Caughlan
+
+## Contributors
+`quickbooks-ruby` has been a community effort and I am extremely thankful for all the [amazing contributors](https://github.com/ruckus/quickbooks-ruby/network/members).
 
 ## License
 

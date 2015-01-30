@@ -1,12 +1,13 @@
 module Quickbooks
   module Service
     class Bill < BaseService
-      include ServiceCrud
 
-      def default_model_query
-        "SELECT * FROM Bill"
+      def delete(bill)
+        delete_by_query_string(bill)
       end
 
+      private
+      
       def model
         Quickbooks::Model::Bill
       end

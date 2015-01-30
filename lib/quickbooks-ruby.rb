@@ -34,23 +34,41 @@ require 'uri'
 require 'date'
 require 'forwardable'
 require 'oauth'
+require 'quickbooks/util/collection'
 require 'quickbooks/util/logging'
 require 'quickbooks/util/http_encoding_helper'
 require 'quickbooks/util/name_entity'
 require 'quickbooks/service_handle'
+require 'quickbooks/util/query_builder'
 
 #== Models
+require 'quickbooks/model/validator'
 require 'quickbooks/model/base_model'
 require 'quickbooks/model/base_reference'
+require 'quickbooks/model/document_numbering'
+require 'quickbooks/model/global_tax_calculation'
+require 'quickbooks/model/has_line_items'
+require 'quickbooks/model/access_token_response'
 require 'quickbooks/model/meta_data'
+require 'quickbooks/model/class'
 require 'quickbooks/model/custom_field'
 require 'quickbooks/model/sales_item_line_detail'
 require 'quickbooks/model/sub_total_line_detail'
+require 'quickbooks/model/department'
+require 'quickbooks/model/discount_line_detail'
 require 'quickbooks/model/discount_override'
 require 'quickbooks/model/linked_transaction'
 require 'quickbooks/model/payment_line_detail'
 require 'quickbooks/model/account_based_expense_line_detail'
+require 'quickbooks/model/item_based_expense_line_detail'
+require 'quickbooks/model/linked_transaction'
+require 'quickbooks/model/tax_line_detail'
+require 'quickbooks/model/tax_line'
+require 'quickbooks/model/transaction_tax_detail'
+require 'quickbooks/model/entity'
+require 'quickbooks/model/journal_entry_line_detail'
 require 'quickbooks/model/line'
+require 'quickbooks/model/journal_entry'
 require 'quickbooks/model/item'
 require 'quickbooks/model/account'
 require 'quickbooks/model/check_payment'
@@ -66,6 +84,7 @@ require 'quickbooks/model/tax_line'
 require 'quickbooks/model/transaction_tax_detail'
 require 'quickbooks/model/tax_rate'
 require 'quickbooks/model/invoice'
+require 'quickbooks/model/name_value'
 require 'quickbooks/model/company_info'
 require 'quickbooks/model/customer'
 require 'quickbooks/model/sales_receipt'
@@ -84,19 +103,38 @@ require 'quickbooks/model/term'
 require 'quickbooks/model/markup_info'
 require 'quickbooks/model/group_line_detail'
 require 'quickbooks/model/item_based_expense_line_detail'
+require 'quickbooks/model/time_activity'
 require 'quickbooks/model/purchase_line_item'
 require 'quickbooks/model/purchase'
 require 'quickbooks/model/purchase_order'
 require 'quickbooks/model/vendor_credit'
 require 'quickbooks/model/estimate'
+require 'quickbooks/model/invoice'
+require 'quickbooks/model/tax_rate'
+require 'quickbooks/model/tax_rate_detail'
+require 'quickbooks/model/sales_tax_rate_list'
+require 'quickbooks/model/purchase_tax_rate_list'
+require 'quickbooks/model/tax_code'
+require 'quickbooks/model/fault'
+require 'quickbooks/model/batch_request'
+require 'quickbooks/model/batch_response'
+require 'quickbooks/model/preferences'
+require 'quickbooks/model/refund_receipt'
+require 'quickbooks/model/invoice_change'
+require 'quickbooks/model/customer_change'
+
 
 #== Services
-require 'quickbooks/service/base_service'
 require 'quickbooks/service/service_crud'
+require 'quickbooks/service/base_service'
+require 'quickbooks/service/access_token'
+require 'quickbooks/service/class'
 require 'quickbooks/service/company_info'
 require 'quickbooks/service/customer'
+require 'quickbooks/service/department'
 require 'quickbooks/service/invoice'
 require 'quickbooks/service/item'
+require 'quickbooks/service/journal_entry'
 require 'quickbooks/service/sales_receipt'
 require 'quickbooks/service/account'
 require 'quickbooks/service/payment_method'
@@ -107,17 +145,34 @@ require 'quickbooks/service/vendor'
 require 'quickbooks/service/employee'
 require 'quickbooks/service/payment'
 require 'quickbooks/service/term'
+require 'quickbooks/service/time_activity'
 require 'quickbooks/service/purchase'
 require 'quickbooks/service/purchase_order'
 require 'quickbooks/service/vendor_credit'
 require 'quickbooks/service/estimate'
 require 'quickbooks/service/tax_rate'
 require 'quickbooks/service/disconnect'
+require 'quickbooks/service/tax_code'
+require 'quickbooks/service/batch'
+require 'quickbooks/service/preferences'
+require 'quickbooks/service/refund_receipt'
+require 'quickbooks/service/invoice_change'
+require 'quickbooks/service/customer_change'
 
 module Quickbooks
+  @@sandbox_mode = false
+
   @@logger = nil
 
   class << self
+    def sandbox_mode
+      @@sandbox_mode
+    end
+
+    def sandbox_mode=(sandbox_mode)
+      @@sandbox_mode = sandbox_mode
+    end
+
     def logger
       @@logger ||= ::Logger.new($stdout) # TODO: replace with a real log file
     end
@@ -127,11 +182,16 @@ module Quickbooks
     end
 
     # set logging on or off
-    attr_writer :log
+    attr_writer :log, :log_xml_pretty_print
 
     # Returns whether to log. Defaults to 'false'.
     def log?
       @log ||= false
+    end
+
+    # pretty printing the xml in the logs is "on" by default
+    def log_xml_pretty_print?
+      defined?(@log_xml_pretty_print) ? @log_xml_pretty_print : true
     end
 
     def log(msg)
@@ -145,9 +205,13 @@ module Quickbooks
   class InvalidModelException < StandardError; end
 
   class AuthorizationFailure < StandardError; end
+  class Forbidden < StandardError; end
+
+  class ServiceUnavailable < StandardError; end
+  class MissingRealmError < StandardError; end
 
   class IntuitRequestException < StandardError
-    attr_accessor :message, :code, :detail, :type
+    attr_accessor :message, :code, :detail, :type, :request_xml
     def initialize(msg)
       self.message = msg
       super(msg)

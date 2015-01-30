@@ -13,6 +13,9 @@ describe "Quickbooks::Model::Invoice" do
     invoice.private_note.should == "Statement Memo"
     invoice.line_items.should_not be_nil
     invoice.line_items.length.should == 2
+    invoice.currency_ref.to_s.should == 'USD'
+    invoice.currency_ref.name.should == 'United States Dollar'
+    invoice.exchange_rate.should == 1.5
 
     line_item1 = invoice.line_items[0]
     line_item1.id.should == 1
@@ -54,9 +57,28 @@ describe "Quickbooks::Model::Invoice" do
     shipping_address.lat.should == "33.739466"
     shipping_address.lon.should == "-118.0395574"
 
+    tax_detail = invoice.txn_tax_detail
+    tax_detail.total_tax.should eq(2.85)
+    first_tax_line, second_tax_line = tax_detail.lines
+
+    first_tax_line.amount.should eq(0)
+    first_tax_line.detail_type.should eq("TaxLineDetail")
+    first_tax_line.tax_line_detail.tax_rate_ref.value.should eq("4")
+    first_tax_line.tax_line_detail.percent_based?.should be_true
+    first_tax_line.tax_line_detail.tax_percent.should eq(0.0)
+    first_tax_line.tax_line_detail.net_amount_taxable.should eq(4.0)
+
+    second_tax_line.amount.should eq(2.85)
+    second_tax_line.detail_type.should eq("TaxLineDetail")
+    second_tax_line.tax_line_detail.tax_rate_ref.value.should eq("20")
+    second_tax_line.tax_line_detail.percent_based?.should be_true 
+    second_tax_line.tax_line_detail.tax_percent.should eq(10.0)
+    second_tax_line.tax_line_detail.net_amount_taxable.should eq(28.5)
+
     invoice.sales_term_ref.to_i.should == 2
     invoice.due_date.to_date.should == Date.civil(2013, 11, 30)
     invoice.total_amount.should == 50.00
+    invoice.home_total_amount.should == 75.00
     invoice.apply_tax_after_discount?.should == false
     invoice.print_status.should == 'NotSet'
     invoice.email_status.should == 'NotSet'
@@ -100,6 +122,10 @@ describe "Quickbooks::Model::Invoice" do
     invoice.errors.keys.include?(:bill_email).should == false
   end
 
+  describe "#auto_doc_number" do
+    it_should_behave_like "a model that has auto_doc_number support", 'Invoice'
+  end
+
   it "can properly convert to/from BigDecimal" do
     input_xml = fixture("invoice.xml")
     invoice = Quickbooks::Model::Invoice.from_xml(input_xml)
@@ -113,4 +139,21 @@ describe "Quickbooks::Model::Invoice" do
     node.should_not be_nil
     node.content.should == "198.99"
   end
+
+  it "can set the currency" do
+    invoice = Quickbooks::Model::Invoice.new
+    invoice.currency_id = 'CAD'
+    invoice.currency_ref.name = 'Canadian Dollar'
+    invoice.to_xml.to_s.should match /CurrencyRef name.+?Canadian Dollar.+?>CAD/
+  end
+
+  describe "#global_tax_calculation" do
+    subject { Quickbooks::Model::Invoice.new }
+    it_should_behave_like "a model with a valid GlobalTaxCalculation", "TaxInclusive"
+    it_should_behave_like "a model with a valid GlobalTaxCalculation", "TaxExcluded"
+    it_should_behave_like "a model with a valid GlobalTaxCalculation", "NotApplicable"
+    it_should_behave_like "a model with a valid GlobalTaxCalculation", ""
+    it_should_behave_like "a model with an invalid GlobalTaxCalculation"
+  end
+
 end

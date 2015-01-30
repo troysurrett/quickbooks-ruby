@@ -6,9 +6,19 @@ module Quickbooks
         fetch_collection(object_query, model, options)
       end
 
-      def fetch_by_id(id, options = {})
+      def query_in_batches(object_query=nil, options={})
+        page = 0
+        per_page = options.delete(:per_page) || 1_000
+        begin
+          page += 1
+          results = query(object_query, page: page, per_page: per_page)
+          yield results if results.count > 0
+        end until results.count < per_page
+      end
+
+      def fetch_by_id(id, params = {})
         url = "#{url_for_resource(model.resource_for_singular)}/#{id}"
-        fetch_object(model, url, options)
+        fetch_object(model, url, params)
       end
 
       def create(entity, options = {})
@@ -21,9 +31,10 @@ module Quickbooks
           nil
         end
       end
+      alias :update :create
 
       def delete(entity)
-        raise "Not implemented for this Entity"
+        raise NotImplementedError
       end
 
       def delete_by_query_string(entity, options = {})
@@ -37,21 +48,6 @@ module Quickbooks
           false
         end
       end
-
-      def update(entity, options = {})
-        unless entity.valid?
-          raise Quickbooks::InvalidModelException.new(entity.errors.full_messages.join(','))
-        end
-
-        xml = entity.to_xml_ns(options)
-        response = do_http_post(url_for_resource(model.resource_for_singular), valid_xml_document(xml))
-        if response.code.to_i == 200
-          model.from_xml(parse_singular_entity_response(model, response.plain_body))
-        else
-          nil
-        end
-      end
-
     end
   end
 end

@@ -1,18 +1,10 @@
 module Quickbooks
   module Service
     class TaxRate < BaseService
-      include ServiceCrud
-
-      def default_model_query
-        "SELECT * FROM TaxRate"
-      end
+      private
 
       def model
         Quickbooks::Model::TaxRate
-      end
-
-      def search_name_query(name)
-        "SELECT * FROM TaxRate WHERE Name = '#{name}'"
       end
     end
   end

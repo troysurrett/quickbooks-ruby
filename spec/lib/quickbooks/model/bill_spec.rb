@@ -36,4 +36,20 @@ describe "Quickbooks::Model::Bill" do
     line_item2.account_based_expense_line_detail.tax_code_ref.to_s.should == "NON"
   end
 
+  it "can parse an Item-based bill from XML" do
+    xml = fixture("bill_line_item_expense.xml")
+    bill = Quickbooks::Model::Bill.from_xml(xml)
+    line_item1 = bill.line_items[0]
+    line_item1.item_based_expense_item?.should == true
+  end
+
+  describe "#global_tax_calculation" do
+    subject { Quickbooks::Model::Bill.new }
+    it_should_behave_like "a model with a valid GlobalTaxCalculation", "TaxInclusive"
+    it_should_behave_like "a model with a valid GlobalTaxCalculation", "TaxExcluded"
+    it_should_behave_like "a model with a valid GlobalTaxCalculation", "NotApplicable"
+    it_should_behave_like "a model with a valid GlobalTaxCalculation", ""
+    it_should_behave_like "a model with an invalid GlobalTaxCalculation"
+  end
+
 end

@@ -17,6 +17,7 @@ module Quickbooks
       xml_accessor :id, :from => 'Id', :as => Integer
       xml_accessor :sync_token, :from => 'SyncToken', :as => Integer
       xml_accessor :meta_data, :from => 'MetaData', :as => MetaData
+      xml_accessor :attachable_ref, :from => 'AttachableRef', :as => BaseReference
       xml_accessor :title, :from => 'Title'
       xml_accessor :given_name, :from => 'GivenName'
       xml_accessor :middle_name, :from => 'MiddleName'
@@ -25,7 +26,7 @@ module Quickbooks
       xml_accessor :company_name, :from => 'CompanyName'
       xml_accessor :display_name, :from => 'DisplayName'
       xml_accessor :print_on_check_name, :from => 'PrintOnCheckName'
-      xml_accessor :active, :from => 'Active'
+      xml_accessor :active?, :from => 'Active'
       xml_accessor :primary_phone, :from => 'PrimaryPhone', :as => TelephoneNumber
       xml_accessor :alternate_phone, :from => 'AlternatePhone', :as => TelephoneNumber
       xml_accessor :mobile_phone, :from => 'Mobile', :as => TelephoneNumber
@@ -45,7 +46,7 @@ module Quickbooks
       validate :names_cannot_contain_invalid_characters
       validate :email_address_is_valid
 
-      reference_setters :term_ref
+      reference_setters
 
     end
   end

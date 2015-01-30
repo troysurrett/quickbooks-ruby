@@ -15,6 +15,7 @@ describe "Quickbooks::Model::Customer" do
     customer.primary_email_address.should_not be_nil
     customer.primary_email_address.address.should == "info@thriftymeats.com"
     customer.taxable?.should == false
+    customer.default_tax_code_ref.to_s.should == 'NON'
 
     customer.billing_address.should_not be_nil
     customer.billing_address.id.should == 2
@@ -39,6 +40,9 @@ describe "Quickbooks::Model::Customer" do
     customer.balance.should == 0
     customer.balance_with_jobs.should == 0
     customer.preferred_delivery_method.should == "Email"
+
+    customer.currency_ref.name.should == "British Pound Sterling"
+    customer.currency_ref.value.should == "GBP"
   end
 
   it "can assign an email address" do

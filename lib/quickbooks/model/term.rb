@@ -9,7 +9,7 @@ module Quickbooks
       xml_accessor :sync_token, :from => 'SyncToken', :as => Integer
       xml_accessor :meta_data, :from => 'MetaData', :as => MetaData
       xml_accessor :name, :from => 'Name'
-      xml_accessor :active, :from => 'Active'
+      xml_accessor :active?, :from => 'Active'
       xml_accessor :type, :from => 'Type'
       xml_accessor :discount_percent, :from => 'DiscountPercent', :as => BigDecimal
       xml_accessor :due_days, :from => 'DueDays', :as => Integer
@@ -17,12 +17,12 @@ module Quickbooks
       xml_accessor :day_of_month_due, :from => 'DayOfMonthDue', :as => Integer
       xml_accessor :due_next_month_days, :from => 'DueNextMonthDays', :as => Integer
       xml_accessor :discount_day_of_month, :from => 'DiscountDayOfMonth', :as => Integer
+      xml_accessor :attachable_ref, :from => 'AttachableRef', :as => BaseReference
 
       validates_presence_of :name
 
-      def active?
-        active == "true"
-      end
+      reference_setters :attachable_ref
+
     end
   end
 end

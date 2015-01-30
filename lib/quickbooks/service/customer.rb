@@ -1,7 +1,6 @@
 module Quickbooks
   module Service
     class Customer < BaseService
-      include ServiceCrud
 
       def delete(customer)
         customer.active = false
@@ -9,10 +8,6 @@ module Quickbooks
       end
 
       private
-
-      def default_model_query
-        "SELECT * FROM CUSTOMER"
-      end
 
       def model
         Quickbooks::Model::Customer

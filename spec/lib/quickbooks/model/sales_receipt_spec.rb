@@ -10,7 +10,7 @@ describe "Quickbooks::Model::SalesReceipt" do
     sales_receipt.meta_data.last_updated_time.should == DateTime.parse("2013-12-10T05:35:42-08:00")
 
     sales_receipt.doc_number.should == "1002"
-    sales_receipt.placed_on.should == DateTime.parse("2013-12-10")
+    sales_receipt.txn_date.should == Time.parse("2013-12-10")
 
     sales_receipt.line_items.first.should_not be_nil
     sales_receipt.line_items.first.id.should == 1
@@ -38,5 +38,24 @@ describe "Quickbooks::Model::SalesReceipt" do
     sales_receipt.private_note.should == "private"
 
     sales_receipt.total.should == 10.00
+  end
+
+  it "should initialize line items as empty array" do
+     sales_receipt = Quickbooks::Model::SalesReceipt.new
+     sales_receipt.line_items.should_not be_nil
+     sales_receipt.line_items.length.should == 0
+  end
+
+  describe "#auto_doc_number" do
+    it_should_behave_like "a model that has auto_doc_number support", 'SalesReceipt'
+  end
+
+  describe "#global_tax_calculation" do
+    subject { Quickbooks::Model::SalesReceipt.new }
+    it_should_behave_like "a model with a valid GlobalTaxCalculation", "TaxInclusive"
+    it_should_behave_like "a model with a valid GlobalTaxCalculation", "TaxExcluded"
+    it_should_behave_like "a model with a valid GlobalTaxCalculation", "NotApplicable"
+    it_should_behave_like "a model with a valid GlobalTaxCalculation", ""
+    it_should_behave_like "a model with an invalid GlobalTaxCalculation"
   end
 end

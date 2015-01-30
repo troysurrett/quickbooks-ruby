@@ -1,11 +1,12 @@
 module Quickbooks
   module Service
     class PurchaseOrder < BaseService
-      include ServiceCrud
 
-      def default_model_query
-        "SELECT * FROM PurchaseOrder"
+      def delete(purchase_order)
+        delete_by_query_string(purchase_order)
       end
+
+    private
 
       def model
         Quickbooks::Model::PurchaseOrder

@@ -23,15 +23,15 @@ module Quickbooks
       xml_accessor :suffix, :from => 'Suffix'
       xml_accessor :display_name, :from => 'DisplayName'
       xml_accessor :print_on_check_name, :from => 'PrintOnCheckName'
-      xml_accessor :active, :from => 'Active'
+      xml_accessor :active?, :from => 'Active'
       xml_accessor :primary_phone, :from => 'PrimaryPhone', :as => TelephoneNumber
       xml_accessor :mobile_phone, :from => 'Mobile', :as => TelephoneNumber
       xml_accessor :primary_email_address, :from => 'PrimaryEmailAddr', :as => EmailAddress
-      xml_accessor :number, :from => 'EmployeeNumber', :as => Integer
+      xml_accessor :number, :from => 'EmployeeNumber'
       xml_accessor :ssn, :from => 'SSN'
       xml_accessor :address, :from => 'PrimaryAddr', :as => PhysicalAddress
       xml_accessor :billable?, :from => 'BillableTime'
-      xml_accessor :billable_rate, :from => 'BillRate', :as => BigDecimal, :to_xml => Proc.new { |val| val.to_f }
+      xml_accessor :billable_rate, :from => 'BillRate', :as => BigDecimal, :to_xml => to_xml_big_decimal
       xml_accessor :birth_date, :from => 'BirthDate', :as => Date
       xml_accessor :gender, :from => 'Gender'
       xml_accessor :hired_date, :from => 'HiredDate', :as => Date

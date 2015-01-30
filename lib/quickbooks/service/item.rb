@@ -1,7 +1,6 @@
 module Quickbooks
   module Service
     class Item < BaseService
-      include ServiceCrud
 
       def delete(item)
         item.active = false
@@ -9,10 +8,6 @@ module Quickbooks
       end
 
       private
-
-      def default_model_query
-        "SELECT * FROM ITEM"
-      end
 
       def model
         Quickbooks::Model::Item

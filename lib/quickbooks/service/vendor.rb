@@ -1,7 +1,6 @@
 module Quickbooks
   module Service
     class Vendor < BaseService
-      include ServiceCrud
 
       # override update as sparse is not supported
       def update(entity, options = {})
@@ -15,10 +14,6 @@ module Quickbooks
       end
 
       private
-
-      def default_model_query
-        "SELECT * FROM VENDOR"
-      end
 
       def model
         Quickbooks::Model::Vendor
