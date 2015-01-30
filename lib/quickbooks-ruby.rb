@@ -3,29 +3,6 @@ require 'json'
 # require 'iconv'
 require 'roxml'
 
-module ROXML::ClassMethods::Declarations
-  def xml_accessor(*syms, &block)
-    xml_attr(*syms, &block).each do |attr|
-      add_reader(attr, syms[1][:as])
-      attr_writer(attr.attr_name)
-    end
-  end
-
-  def add_reader(attr, as)
-    define_method(attr.accessor) do
-      if instance_variable_get(attr.instance_variable_name).nil?
-        instance_variable_set(attr.instance_variable_name, attr.default)
-      end
-      result = instance_variable_get(attr.instance_variable_name)
-      if result.is_a?(Array) && !as.is_a?(Array)
-        return instance_variable_get(attr.instance_variable_name).first
-      else
-        return instance_variable_get(attr.instance_variable_name)
-      end
-    end
-  end
-end
-
 require 'logger'
 require 'nokogiri'
 require 'active_model'
@@ -233,9 +210,9 @@ end
 class Object
   def public_send(method, *args)
     if respond_to?(method)
-      send(method, args)
+      send(method, *args)
     else
-      method_missing(method, args)
+      method_missing(method, *args)
     end
   end
 end

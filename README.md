@@ -21,7 +21,9 @@ Moreover, there is no longer a getter method e.g. `active` (without the trailing
 
 ## Requirements
 
-Ruby 1.8.7
+This has been tested on 1.9.3, 2.0.0, and 2.1.0.
+
+Ruby 1.8.7 and 1.9.2 are not supported.
 
 ## Dependencies
 

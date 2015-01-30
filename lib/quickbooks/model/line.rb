@@ -37,8 +37,6 @@ module Quickbooks
       end
       alias_method :credit_memo_ids=, :credit_memo_id=
 
-      xml_accessor :linked_transactions, :from => 'LinkedTxn', :as => [LinkedTransaction]
-
       def sales_item!
         self.detail_type = SALES_ITEM_LINE_DETAIL
         self.sales_item_line_detail = SalesItemLineDetail.new

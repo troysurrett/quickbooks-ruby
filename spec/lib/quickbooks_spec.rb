@@ -1,4 +1,3 @@
-require 'lib/quickbooks/version'
 describe Quickbooks do
 
   describe "VERSION" do
