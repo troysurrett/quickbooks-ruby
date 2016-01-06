@@ -2,6 +2,8 @@
 
 Backport of quickbooks-ruby for Ruby 1.8.7
 
+This library is no longer needed by me, or anyone else, as far as I can tell. I'll likely delete it soon.
+
 ## Changes in 0.1.x from 0.0.x
 
 `0.1.0` introduced a backwards-incompatible change in how boolean attributes are handled. As of `0.1.0` any boolean like:
